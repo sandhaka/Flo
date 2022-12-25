@@ -1,6 +1,6 @@
 # Flo
 
-![develop](https://github.com/sandhaka/Flo/workflows/develop/badge.svg) ![master](https://github.com/sandhaka/Flo/workflows/master/badge.svg)
+![develop](https://github.com/sandhaka/Flo/actions/workflows/develop/badge.svg?branch=develop) ![master](https://github.com/sandhaka/Flo/actions/workflows/master/badge.svg)
 
 Flo is a lightweight library for composing chain of responsibility pipelines. The inspiration for this project came from the need to break down a large codebase of tightly coupled behavior into smaller units for better extensibility and testability.
 
