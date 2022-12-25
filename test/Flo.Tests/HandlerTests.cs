@@ -1,117 +1,118 @@
 using System;
-using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
-using NSpec;
-using Shouldly;
+using Xunit;
 
-namespace Flo.Tests
+namespace Flo.Tests;
+
+public class DescribeHandler
 {
-    public class describe_Handler : nspec
+    [Fact]
+    async ValueTask it_creates_and_invoke_handler_using_default_service_provider()
     {
-        async Task it_creates_and_invoke_handler_using_default_service_provider()
-        {
-            var pipeline = Pipeline.Build<TestContext>(cfg =>
-                 cfg.Add<TestHandler>()
-                    .Add<TestHandler>()
-            );
+        var pipeline = Pipeline.Build<TestContext>(cfg =>
+            cfg.Add<TestHandler>()
+                .Add<TestHandler>()
+        );
 
-            var context = new TestContext();
-            await pipeline.Invoke(context);
-            context.Count.ShouldBe(2);
-        }
+        var context = new TestContext();
+        await pipeline.Invoke(context);
+        Assert.Equal(2, context.Count);
+    }
 
-        async Task it_can_register_handler_instance()
-        {
-            var pipeline = Pipeline.Build<TestContext>(cfg =>
-                cfg.Add(new TestHandler()));
+    [Fact]
+    async ValueTask it_can_register_handler_instance()
+    {
+        var pipeline = Pipeline.Build<TestContext>(cfg =>
+            cfg.Add(new TestHandler()));
 
-            var context = new TestContext();
-            await pipeline.Invoke(context);
-            context.Count.ShouldBe(1);
-        }
+        var context = new TestContext();
+        await pipeline.Invoke(context);
+        Assert.Single(context);
+    }
 
-        async Task it_initialises_handlers_lazily()
-        {
-            bool initialised = false;
+    [Fact]
+    async ValueTask it_initialises_handlers_lazily()
+    {
+        bool initialised = false;
 
-            var pipeline = Pipeline.Build<object>(cfg =>
-                 cfg.Add(() => new LazyHandler(() => initialised = true))
-            );
+        var pipeline = Pipeline.Build<object>(cfg =>
+            cfg.Add(() => new LazyHandler(() => initialised = true))
+        );
 
-            initialised.ShouldBe(false);
-            await pipeline.Invoke(null);
-            initialised.ShouldBe(true);
-        }
+        Assert.False(initialised);
+        await pipeline.Invoke(null);
+        Assert.True(initialised);
+    }
 
-        async Task it_supports_handlers_with_result()
-        {
-            var pipeline = Pipeline.Build<string, int>(cfg =>
-                cfg.Add<StringLengthCountHandler>()
-            );
+    [Fact]
+    async ValueTask it_supports_handlers_with_result()
+    {
+        var pipeline = Pipeline.Build<string, int>(cfg =>
+            cfg.Add<StringLengthCountHandler>()
+        );
 
-            var output = await pipeline.Invoke("hello world");
-            output.ShouldBe(11);
-        }
+        var output = await pipeline.Invoke("hello world");
+        Assert.Equal(11, output);
+    }
 
-        async Task it_can_use_a_custom_service_provider()
-        {
-            var pipeline = Pipeline.Build<string, string>(cfg =>
+    [Fact]
+    async ValueTask it_can_use_a_custom_service_provider()
+    {
+        var pipeline = Pipeline.Build<string, string>(cfg =>
                 cfg.Add<OverridingHandler>()
-            , type => new OverridingHandler("Override")); // always returns this handler type
+            , _ => new OverridingHandler("Override")); // always returns this handler type
 
-            var output = await pipeline.Invoke("hello world");
-            output.ShouldBe("Override");
+        var output = await pipeline.Invoke("hello world");
+        Assert.Equal("Override", output);
+    }
+
+    class TestHandler : IHandler<TestContext>
+    {
+        public ValueTask<TestContext> HandleAsync(TestContext input, Func<TestContext, ValueTask<TestContext>> next)
+        {
+            input.Add(Guid.NewGuid().ToString(), Guid.NewGuid());
+            return next.Invoke(input);
+        }
+    }
+
+    class LazyHandler : IHandler<object>
+    {
+        private readonly Action _callback;
+
+        public LazyHandler(Action callback)
+        {
+            _callback = callback;
         }
 
-        class TestHandler : IHandler<TestContext>
+        public ValueTask<object> HandleAsync(object input, Func<object, ValueTask<object>> next)
         {
-            public Task<TestContext> HandleAsync(TestContext input, Func<TestContext, Task<TestContext>> next)
-            {
-                input.Add(Guid.NewGuid().ToString(), Guid.NewGuid());
-                return next.Invoke(input);
-            }
+            _callback.Invoke();
+            return next.Invoke(input);
+        }
+    }
+
+    class StringLengthCountHandler : IHandler<string, int>
+    {
+        public ValueTask<int> HandleAsync(string input, Func<string, ValueTask<int>> next)
+        {
+            return ValueTask.FromResult(input.Length);
+        }
+    }
+
+    class OverridingHandler : IHandler<string, string>
+    {
+        private readonly string _output;
+
+        public OverridingHandler() : this("Default") { }
+
+        public OverridingHandler(string output)
+        {
+            _output = output;
         }
 
-        class LazyHandler : IHandler<object>
+        public ValueTask<string> HandleAsync(string input, Func<string, ValueTask<string>> next)
         {
-            private readonly Action _callback;
-
-            public LazyHandler(Action callback)
-            {
-                _callback = callback;
-            }
-
-            public Task<object> HandleAsync(object input, Func<object, Task<object>> next)
-            {
-                _callback.Invoke();
-                return next.Invoke(input);
-            }
-        }
-
-        class StringLengthCountHandler : IHandler<string, int>
-        {
-            public Task<int> HandleAsync(string input, Func<string, Task<int>> next)
-            {
-                return Task.FromResult(input.Length);
-            }
-        }
-
-        class OverridingHandler : IHandler<string, string>
-        {
-            private readonly string _output;
-
-            public OverridingHandler() : this("Default") { }
-
-            public OverridingHandler(string output)
-            {
-                _output = output;
-            }
-
-            public Task<string> HandleAsync(string input, Func<string, Task<string>> next)
-            {
-                return Task.FromResult("Override");
-            }
+            return ValueTask.FromResult("Override");
         }
     }
 }
