@@ -1,27 +1,28 @@
 using System.Threading.Tasks;
-using NSpec;
-using Shouldly;
+using Xunit;
 
-namespace Flo.Tests
+namespace Flo.Tests;
+
+public class DescribeOutputPipelineBuilder
 {
-    class describe_OutputPipelineBuilder : nspec
+    [Fact]
+    async ValueTask it_can_execute_single_handler()
     {
-        async Task it_can_execute_single_handler()
-        {
-            var pipeline = Pipeline.Build<string, int>(cfg =>
-                cfg.Add((input, next) => {
-                    return Task.FromResult(input.Length);
-                })
-            );
+        var pipeline = Pipeline.Build<string, int>(cfg =>
+            cfg.Add((input, _) => {
+                return ValueTask.FromResult(input.Length);
+            })
+        );
 
-            var result = await pipeline.Invoke("hello world");
-            result.ShouldBe(11);
-        }
+        var result = await pipeline.Invoke("hello world");
+        Assert.Equal(11, result);
+    }
 
-        async Task it_can_execute_multiple_handlers()
-        {
-            var pipeline = Pipeline.Build<string, int>(cfg =>
-                cfg.Add((input, next) => {
+    [Fact]
+    async ValueTask it_can_execute_multiple_handlers()
+    {
+        var pipeline = Pipeline.Build<string, int>(cfg =>
+            cfg.Add((input, next) => {
                     input += "hello";
                     return next.Invoke(input);
                 })
@@ -29,43 +30,38 @@ namespace Flo.Tests
                     input += " world";
                     return next.Invoke(input);
                 })
-                .Add((input, next) => {
-                    return Task.FromResult(input.Length);
-                })
-            );
+                .Add((input, _) => ValueTask.FromResult(input.Length))
+        );
 
-            var result = await pipeline.Invoke("");
-            result.ShouldBe(11);
-        }
+        var result = await pipeline.Invoke("");
+        Assert.Equal(11, result);
+    }
 
-        async Task it_returns_default_output_value_when_final_handler_not_specified()
-        {
-            var pipeline = Pipeline.Build<string, int>(cfg =>
-                cfg.Add((input, next) => {
-                    return next.Invoke(input);
-                })
-            );
+    [Fact]
+    async ValueTask it_returns_default_output_value_when_final_handler_not_specified()
+    {
+        var pipeline = Pipeline.Build<string, int>(cfg =>
+            cfg.Add((input, next) => next.Invoke(input))
+        );
 
-            var result = await pipeline.Invoke("hello world");
-            result.ShouldBe(default(int));
-        }
+        var result = await pipeline.Invoke("hello world");
+        Assert.Equal(default, result);
+    }
 
-        async Task it_ignores_subsequent_handlers_when_final_is_used()
-        {
-            bool nextExecuted = false;
+    [Fact]
+    async ValueTask it_ignores_subsequent_handlers_when_final_is_used()
+    {
+        bool nextExecuted = false;
             
-            var pipeline = Pipeline.Build<string, int>(cfg =>
-                cfg.Final(input => {
-                    return Task.FromResult(input.Length);
-                })
-                .Add((input, next) => {
+        var pipeline = Pipeline.Build<string, int>(cfg =>
+            cfg.Final(input => ValueTask.FromResult(input.Length))
+                .Add((_, _) => {
                     nextExecuted = true;
-                    return Task.FromResult(1);
+                    return ValueTask.FromResult(1);
                 })
-            );
+        );
 
-            await pipeline.Invoke("hello world");
-            nextExecuted.ShouldBe(false);
-        }
+        await pipeline.Invoke("hello world");
+        Assert.False(nextExecuted);
     }
 }

@@ -11,7 +11,8 @@
     <PackageLicenseUrl>https://github.com/benfoster/Flo/raw/master/LICENSE.MD</PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/benfoster/flo</RepositoryUrl>
-    <TargetFramework>netstandard1.3</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
+    <LangVersion>default</LangVersion>
   </PropertyGroup>
 
 </Project>

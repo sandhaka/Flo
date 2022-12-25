@@ -1,146 +1,142 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
-using NSpec;
-using Shouldly;
+using Xunit;
 
-namespace Flo.Tests
+namespace Flo.Tests;
+
+public class DescribeOutputPipelineBuilderWhen
 {
-    public class describe_OutputPipelineBuilder_When : nspec
+    [Fact]
+    async ValueTask it_ignores_the_handler_if_the_predicate_returns_false()
     {
-        async Task it_ignores_the_handler_if_the_predicate_returns_false()
-        {
-            var pipeline = Pipeline.Build<string, int>(cfg =>
-                cfg.When(input => input == "hello world",
-                    builder => builder.Add((input, next) =>
-                    {
-                        return Task.FromResult(input.Length);
-                    })
+        var pipeline = Pipeline.Build<string, int>(cfg =>
+            cfg.When(input => input == "hello world",
+                builder => builder.Add((input, _) =>
+                {
+                    return ValueTask.FromResult(input.Length);
+                })
+            )
+        );
+
+        var result = await pipeline.Invoke("hello");
+        Assert.Equal(0, result);
+    }
+
+    [Fact]
+    async ValueTask it_ignores_the_handler_if_the_async_predicate_returns_false()
+    {
+        var pipeline = Pipeline.Build<string, int>(cfg =>
+            cfg.When(input => ValueTask.FromResult(input == "hello world"),
+                builder => builder.Add((input, _) =>
+                {
+                    return ValueTask.FromResult(input.Length);
+                })
+            )
+        );
+
+        var result = await pipeline.Invoke("hello");
+        Assert.Equal(0, result);
+    }
+
+    [Fact]
+    async ValueTask it_executes_the_handler_if_the_predicate_returns_true()
+    {
+        var pipeline = Pipeline.Build<string, int>(cfg =>
+            cfg.When(input => input == "hello world",
+                builder => builder.Add((input, _) =>
+                {
+                    return ValueTask.FromResult(input.Length);
+                })
+            )
+        );
+
+        var result = await pipeline.Invoke("hello world");
+        Assert.Equal(11, result);
+    }
+
+    [Fact]
+    async ValueTask it_executes_the_handler_if_the_async_predicate_returns_true()
+    {
+        var pipeline = Pipeline.Build<string, int>(cfg =>
+            cfg.When(input => ValueTask.FromResult(input == "hello world"),
+                builder => builder.Add((input, _) => ValueTask.FromResult(input.Length))
+            )
+        );
+
+        var result = await pipeline.Invoke("hello world");
+        Assert.Equal(11, result);
+    }
+
+    [Fact]
+    async ValueTask it_continues_to_parent_pipeline_if_child_pipeline_returns_default_value()
+    {
+        var pipeline = Pipeline.Build<TestContext, TestContext>(cfg =>
+            cfg.When(_ => true,
+                    builder => builder.Add((_, _) => ValueTask.FromResult(default(TestContext)))
                 )
-            );
+                .Final(ctx => {
+                    ctx.Add("Test", "TestValue");
+                    return ValueTask.FromResult(ctx);
+                })
+        );
 
-            var result = await pipeline.Invoke("hello");
-            result.ShouldBe(0);
-        }
+        var result = await pipeline.Invoke(new TestContext());
+        Assert.Contains("Test", result.Keys);
+    }
 
-        async Task it_ignores_the_handler_if_the_async_predicate_returns_false()
-        {
-            var pipeline = Pipeline.Build<string, int>(cfg =>
-                cfg.When(input => Task.FromResult(input == "hello world"),
-                    builder => builder.Add((input, next) =>
-                    {
-                        return Task.FromResult(input.Length);
-                    })
+    [Fact]
+    async ValueTask it_continues_to_parent_pipeline_if_child_pipeline_returns_default_value_with_async_predicate()
+    {
+        var pipeline = Pipeline.Build<TestContext, TestContext>(cfg =>
+            cfg.When(_ => ValueTask.FromResult(true),
+                    builder => builder.Add((_, _) => ValueTask.FromResult(default(TestContext)))
                 )
-            );
+                .Final(ctx => {
+                    ctx.Add("Test", "TestValue");
+                    return ValueTask.FromResult(ctx);
+                })
+        );
 
-            var result = await pipeline.Invoke("hello");
-            result.ShouldBe(0);
-        }
+        var result = await pipeline.Invoke(new TestContext());
+        Assert.Contains("Test", result.Keys);
+    }
 
-        async Task it_executes_the_handler_if_the_predicate_returns_true()
-        {
-            var pipeline = Pipeline.Build<string, int>(cfg =>
-                cfg.When(input => input == "hello world",
-                    builder => builder.Add((input, next) =>
+    [Fact]
+    async ValueTask it_does_not_continue_to_parent_pipeline_if_child_pipeline_returns_value()
+    {
+        var pipeline = Pipeline.Build<TestContext, TestContext>(cfg =>
+            cfg.When(_ => true,
+                    builder => builder.Add((ctx, _) =>
                     {
-                        return Task.FromResult(input.Length);
-                    })
-                )
-            );
-
-            var result = await pipeline.Invoke("hello world");
-            result.ShouldBe(11);
-        }
-
-        async Task it_executes_the_handler_if_the_async_predicate_returns_true()
-        {
-            var pipeline = Pipeline.Build<string, int>(cfg =>
-                cfg.When(input => Task.FromResult(input == "hello world"),
-                    builder => builder.Add((input, next) =>
-                    {
-                        return Task.FromResult(input.Length);
-                    })
-                )
-            );
-
-            var result = await pipeline.Invoke("hello world");
-            result.ShouldBe(11);
-        }
-
-        async Task it_continues_to_parent_pipeline_if_child_pipeline_returns_default_value()
-        {
-            var pipeline = Pipeline.Build<TestContext, TestContext>(cfg =>
-                cfg.When(input => true,
-                    builder => builder.Add((ctx, next) =>
-                    {
-                        return Task.FromResult(default(TestContext));
+                        return ValueTask.FromResult(ctx);
                     })
                 )
                 .Final(ctx => {
                     ctx.Add("Test", "TestValue");
-                    return Task.FromResult(ctx);
+                    return ValueTask.FromResult(ctx);
                 })
-            );
+        );
 
-            var result = await pipeline.Invoke(new TestContext());
-            result.ShouldContainKey("Test");
-        }
+        var result = await pipeline.Invoke(new TestContext());
+        Assert.DoesNotContain("Test", result.Keys);
+    }
 
-        async Task it_continues_to_parent_pipeline_if_child_pipeline_returns_default_value_with_async_predicate()
-        {
-            var pipeline = Pipeline.Build<TestContext, TestContext>(cfg =>
-                cfg.When(input => Task.FromResult(true),
-                    builder => builder.Add((ctx, next) =>
+    [Fact]
+    async ValueTask it_does_not_continue_to_parent_pipeline_if_child_pipeline_returns_value_with_async_predicate()
+    {
+        var pipeline = Pipeline.Build<TestContext, TestContext>(cfg =>
+            cfg.When(_ => ValueTask.FromResult(true),
+                    builder => builder.Add((ctx, _) =>
                     {
-                        return Task.FromResult(default(TestContext));
+                        return ValueTask.FromResult(ctx);
                     })
                 )
                 .Final(ctx => {
                     ctx.Add("Test", "TestValue");
-                    return Task.FromResult(ctx);
+                    return ValueTask.FromResult(ctx);
                 })
-            );
+        );
 
-            var result = await pipeline.Invoke(new TestContext());
-            result.ShouldContainKey("Test");
-        }
-
-        async Task it_does_not_continue_to_parent_pipeline_if_child_pipeline_returns_value()
-        {
-            var pipeline = Pipeline.Build<TestContext, TestContext>(cfg =>
-                cfg.When(input => true,
-                    builder => builder.Add((ctx, next) =>
-                    {
-                        return Task.FromResult(ctx);
-                    })
-                )
-                .Final(ctx => {
-                    ctx.Add("Test", "TestValue");
-                    return Task.FromResult(ctx);
-                })
-            );
-
-            var result = await pipeline.Invoke(new TestContext());
-            result.ShouldNotContainKey("Test");
-        }
-
-        async Task it_does_not_continue_to_parent_pipeline_if_child_pipeline_returns_value_with_async_predicate()
-        {
-            var pipeline = Pipeline.Build<TestContext, TestContext>(cfg =>
-                cfg.When(input => Task.FromResult(true),
-                    builder => builder.Add((ctx, next) =>
-                    {
-                        return Task.FromResult(ctx);
-                    })
-                )
-                .Final(ctx => {
-                    ctx.Add("Test", "TestValue");
-                    return Task.FromResult(ctx);
-                })
-            );
-
-            var result = await pipeline.Invoke(new TestContext());
-            result.ShouldNotContainKey("Test");
-        }
+        var result = await pipeline.Invoke(new TestContext());
+        Assert.DoesNotContain("Test", result.Keys);
     }
 }

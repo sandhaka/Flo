@@ -1,9 +1,8 @@
 using System.Collections.Generic;
 
-namespace Flo.Tests
+namespace Flo.Tests;
+
+public class TestContext : Dictionary<string, object>
 {
-    public class TestContext : Dictionary<string, object>
-    {
         
-    }
 }
