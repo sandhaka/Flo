@@ -1,14 +1,8 @@
 # Flo
 
-[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/bgqvqvydhh14gk2e?svg=true)](https://ci.appveyor.com/project/benfoster/flo) [![Travis Build Status](https://travis-ci.org/benfoster/Flo.svg?branch=master)](https://travis-ci.org/benfoster/Flo) [![NuGet](https://img.shields.io/nuget/v/Flo.svg)](https://www.nuget.org/packages/Flo)
-
 Flo is a lightweight library for composing chain of responsibility pipelines. The inspiration for this project came from the need to break down a large codebase of tightly coupled behavior into smaller units for better extensibility and testability.
 
 Flo works in a similar way to middleware in ASP.NET Core with a focus on immutability and support for handlers that output a different type i.e. `Func<Tin, Func<TOut>`.
-
-## Where can I get it?
-
-Flo is available on [NuGet](https://www.nuget.org/packages/Flo) and targets NetStandard 1.3.
 
 ## Usage
 
@@ -22,7 +16,7 @@ public class HttpContext
 }
 ```
 
-Use `Pipeline.Build<T>` to create a pipeline passing in a configuration with the handlers you wish to add. Handlers can be delegates or strongly typed (see below). The `Build` method returns a `Func<T, Task<T>` or `Func<TIn, Func<Task<TOut>>` that can safely be reused in your application.
+Use `Pipeline.Build<T>` to create a pipeline passing in a configuration with the handlers you wish to add. Handlers can be delegates or strongly typed (see below). The `Build` method returns a `Func<T, ValueTask<T>` or `Func<TIn, Func<ValueTask<TOut>>` that can safely be reused in your application.
 
 ```c#
 var pipeline = Pipeline.Build<HttpContext>(cfg =>
@@ -59,9 +53,9 @@ Flo supports strongly typed handlers. To create a strongly typed handler, implem
 ```c#
 public class MerchantValidator : IHandler<RequestPayment, ValidationResult>
 {
-    public async Task<ValidationResult> HandleAsync(
+    public async ValueTask<ValidationResult> HandleAsync(
         RequestPayment command, 
-        Func<RequestPayment, Task<ValidationResult>> next)
+        Func<RequestPayment, ValueTask<ValidationResult>> next)
     {
         if (command.MerchantId <= 0)
             return new ValidationResult
@@ -77,11 +71,11 @@ public class MerchantValidator : IHandler<RequestPayment, ValidationResult>
 Strongly typed handlers are registered in the same way as delegate handlers:
 
 ```c#
-public static Func<RequestPayment, Task<ValidationResult>> Build()
+public static Func<RequestPayment, ValueTask<ValidationResult>> Build()
 {
     return Pipeline.Build<RequestPayment, ValidationResult>(cfg =>
         cfg.Add<MerchantValidator>()
-        .Final(s => Task.FromResult(new ValidationResult { IsValid = true }))
+        .Final(s => ValueTask.FromResult(new ValidationResult { IsValid = true }))
     );
 }
 ```
@@ -118,7 +112,7 @@ var pipeline = Pipeline.Build<string, int>(cfg =>
         return next.Invoke(input);
     })
     .Add((input, next) => {
-        return Task.FromResult(input.Length); // don't call next
+        return ValueTask.FromResult(input.Length); // don't call next
     })
 );
 ```
@@ -136,7 +130,7 @@ var pipeline = Pipeline.Build<string, int>(cfg =>
         return next.Invoke(input);
     })
     .Final(input => {
-        return Task.FromResult(input.Length); 
+        return ValueTask.FromResult(input.Length); 
     })
 );
 ```
@@ -175,12 +169,12 @@ var pipeline = Pipeline.Build<TestContext, TestContext>(cfg =>
     cfg.When(input => true,
         builder => builder.Add((ctx, next) =>
         {
-            return Task.FromResult(default(TestContext));
+            return ValueTask.FromResult(default(TestContext));
         })
     )
     .Final(ctx => {
         ctx.Add("Test", "TestValue");
-        return Task.FromResult(ctx);
+        return ValueTask.FromResult(ctx);
     })
 );
 

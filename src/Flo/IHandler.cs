@@ -1,15 +1,13 @@
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 
-namespace Flo
+namespace Flo;
+
+public interface IHandler<TIn, TOut>
 {
-    public interface IHandler<TIn, TOut>
-    {
-        Task<TOut> HandleAsync(TIn input, Func<TIn, Task<TOut>> next);
-    }
+    ValueTask<TOut> HandleAsync(TIn input, Func<TIn, ValueTask<TOut>> next);
+}
     
-    public interface IHandler<T> : IHandler<T, T>
-    {
-    }
+public interface IHandler<T> : IHandler<T, T>
+{
 }
